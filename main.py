@@ -11,7 +11,6 @@ import document
 import models
 import settings
 import utils
-# from lz import LzUserModeling
 from Lz_compress import LzUserModeling
 from test import RunUserModel
 
@@ -29,34 +28,36 @@ def train(config):
     # "2. training loop: data, model and process"
     UM = LzUserModeling(config)
     training_data = UM.train
-    for epoch in range(config.epochs):
-        logging.info('[+] start epoch {}'.format(epoch))
-        model = UM.build_model(epoch)
-        history = model.fit_generator(
-            training_data,
-            config.training_step,
-            epochs=epoch + 1,
-            initial_epoch=epoch,
-            callbacks=None,
-            verbose=1 if config.debug and not config.background else 2)
-        utils.logging_history(history)
-        if hasattr(UM, 'callback'):
-            UM.callback(epoch)
-        try:
-            evaluations = model.evaluate_generator(UM.valid,
-                                                   config.validation_step,
-                                                   verbose=1 if config.debug and not config.background else 2)
-            utils.logging_evaluation(dict(zip(model.metrics_names, evaluations)))
-        except:
-            pass
-        if hasattr(UM, 'callback_valid'):
-            UM.callback_valid(epoch)
-        logging.info('[-] finish epoch {}'.format(epoch))
+    for i in range(config.rounds):
+        logging.info("launching the {} round of {}".format(i, m))
+        for epoch in range(config.epochs):
+            logging.info('[+] start epoch {}'.format(epoch))
+            model = UM.build_model(epoch)
+            history = model.fit_generator(
+                training_data,
+                config.training_step,
+                epochs=epoch + 1,
+                initial_epoch=epoch,
+                callbacks=None,
+                verbose=1 if config.debug and not config.background else 2)
+            utils.logging_history(history)
+            if hasattr(UM, 'callback'):
+                UM.callback(epoch)
+            try:
+                evaluations = model.evaluate_generator(UM.valid,
+                                                       config.validation_step,
+                                                       verbose=1 if config.debug and not config.background else 2)
+                utils.logging_evaluation(dict(zip(model.metrics_names, evaluations)))
+            except:
+                pass
+            if hasattr(UM, 'callback_valid'):
+                UM.callback_valid(epoch)
+            logging.info('[-] finish epoch {}'.format(epoch))
 
-    # "3. save model to .json and .pkl"
-    print("saving model to file ...")
-    UM.save_model()
-    K.clear_session()
+        # "3. save model to .json and .pkl"
+        print("saving model to file ...")
+        UM.save_model()
+        K.clear_session()
     return 0
 
 
@@ -108,6 +109,4 @@ if __name__ == "__main__":
 
     for m in args["models"]:
         config = settings.Config(rounds=args["rounds"], epochs=args["epochs"], arch=m, name=m)
-        for i in range(config.rounds):
-            logging.info("launching the {} round of {}".format(i, m))
-            train(config=config)
+        train(config=config)
