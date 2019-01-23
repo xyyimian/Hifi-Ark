@@ -37,7 +37,7 @@ class LzUserModeling(Seq2Vec):
                                loss=self.loss,
                                metrics=[utils.auc_roc])
             print("this is where metric tensor is added,\n no sure whether it works...\n")
-            self.model.metrics_tensors += [K.sum(orth_reg)]
+            self.model.metrics_tensors += [K.mean(orth_reg)]
             # self.model.metrics_tensors.append(K.mean(orth_reg))
             # self.model.metrics_tensors = [K.mean(orth_reg)]
 
