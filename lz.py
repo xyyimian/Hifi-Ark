@@ -23,79 +23,127 @@ class LzUserModeling(Seq2Vec):
 
         # ------------------------------------------- "task: dual-effect" ------------------------------------------- #
 
-        if user_model == "lz-eff-org":
+        if "eff" in user_model:
+
+            mode = user_model.split("-")[-1]
             _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
                                                     window_len=2,
                                                     hidden_dim=self.config.hidden_dim,
-                                                    mode="non")._build_model()
+                                                    mode=mode)._build_model()
             logits = _model([clicked_vec, candidate_vec])
 
-        elif user_model == "lz-eff-pos":
-            _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-                                                    window_len=2,
-                                                    hidden_dim=self.config.hidden_dim,
-                                                    mode="pos")._build_model()
-            logits = _model([clicked_vec, candidate_vec])
+            # if user_model == "lz-eff-org":
+            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+            #                                             window_len=2,
+            #                                             hidden_dim=self.config.hidden_dim,
+            #                                             mode="org")._build_model()
+            #     logits = _model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-eff-pos":
+            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+            #                                             window_len=2,
+            #                                             hidden_dim=self.config.hidden_dim,
+            #                                             mode="pos")._build_model()
+            #     logits = _model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-eff-neg":
+            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+            #                                             window_len=2,
+            #                                             hidden_dim=self.config.hidden_dim,
+            #                                             mode="neg")._build_model()
+            #     logits = _model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-eff-both":
+            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+            #                                             window_len=2,
+            #                                             hidden_dim=self.config.hidden_dim,
+            #                                             mode="both")._build_model()
+            #     logits = _model([clicked_vec, candidate_vec])
 
-        elif user_model == "lz-eff-neg":
-            _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-                                                    window_len=2,
-                                                    hidden_dim=self.config.hidden_dim,
-                                                    mode="neg")._build_model()
-            logits = _model([clicked_vec, candidate_vec])
+            # else:
+            #     if user_model != "lz-base":
+            #         logging.warning('[!] arch {} not found, using average by default'.format(user_model))
+            #     clicked_vec = models.LzGlobalAveragePooling()(clicked_vec)
+            #     logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
 
-        elif user_model == "lz-eff-both":
-            _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-                                                    window_len=2,
-                                                    hidden_dim=self.config.hidden_dim,
-                                                    mode="both")._build_model()
-            logits = _model([clicked_vec, candidate_vec])
+            self.model = keras.Model([clicked, candidate], logits)
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
 
         # ------------------------------------------- "task: compression" ------------------------------------------- #
 
         else:
-            if user_model == "lz-compress-1":
-                usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
-                                                              hidden_dim=self.config.hidden_dim,
-                                                              channel_count=1,
-                                                              head_count=1)._build_model()
-                clicked_vec = usr_model([clicked_vec, candidate_vec])
 
-            elif user_model == "lz-compress-3":
-                usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
-                                                              hidden_dim=self.config.hidden_dim,
-                                                              channel_count=3,
-                                                              head_count=1)._build_model()
-                clicked_vec = usr_model([clicked_vec, candidate_vec])
+            if "lz-compress-plus" in user_model:
+                channel_count = int(user_model.split("-")[-1])
+                clicked_vec, weights, orth_reg = models.LzCompressionPredictor(channel_count=channel_count)(clicked_vec)
+                clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
-            elif user_model == "lz-compress-10":
-                usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
-                                                              hidden_dim=self.config.hidden_dim,
-                                                              channel_count=10,
-                                                              head_count=1)._build_model()
-                clicked_vec = usr_model([clicked_vec, candidate_vec])
+                logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+                self.model = keras.Model([clicked, candidate], logits)
+                if "lz-compress-plus" in user_model:
+                    self.model.add_loss(self.aux_loss(K.sum(orth_reg)))
 
-            elif user_model == "lz-compress-non":
-                usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
-                                                         hidden_dim=self.config.hidden_dim)._build_model()
-                clicked_vec = usr_model([clicked_vec, candidate_vec])
+                self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                                   loss=self.loss,
+                                   metrics=[utils.auc_roc])
+                print("this is where metric tensor is added,\n no sure whether it works...\n")
+                self.model.metrics_tensors += [K.sum(orth_reg)]
+
             else:
-                if user_model != "lz-base":
-                    logging.warning('[!] arch {} not found, using average by default'.format(user_model))
-                clicked_vec = models.LzGlobalAveragePooling()(clicked_vec)
+                if "-non" in user_model:
+                    usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
+                                                             hidden_dim=self.config.hidden_dim)._build_model()
+                    clicked_vec = usr_model([clicked_vec, candidate_vec])
+                else:
+                    channel_count = int(user_model.split("-")[-1])
+                    usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
+                                                                  hidden_dim=self.config.hidden_dim,
+                                                                  channel_count=channel_count,
+                                                                  head_count=1)._build_model()
+                    clicked_vec = usr_model([clicked_vec, candidate_vec])
 
-            logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
+                logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+                self.model = keras.Model([clicked, candidate], logits)
+                self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                                   loss=self.loss,
+                                   metrics=[utils.auc_roc])
 
-            # join_vec = keras.layers.concatenate([clicked_vec, candidate_vec])
-            # hidden = keras.layers.Dense(self.config.hidden_dim, activation='relu')(join_vec)
-            # logits = keras.layers.Dense(1, activation='sigmoid')(hidden)
+            # if user_model == "lz-compress-1":
+            #     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
+            #                                                   hidden_dim=self.config.hidden_dim,
+            #                                                   channel_count=1,
+            #                                                   head_count=1)._build_model()
+            #     clicked_vec = usr_model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-compress-3":
+            #     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
+            #                                                   hidden_dim=self.config.hidden_dim,
+            #                                                   channel_count=3,
+            #                                                   head_count=1)._build_model()
+            #     clicked_vec = usr_model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-compress-10":
+            #     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
+            #                                                   hidden_dim=self.config.hidden_dim,
+            #                                                   channel_count=10,
+            #                                                   head_count=1)._build_model()
+            #     clicked_vec = usr_model([clicked_vec, candidate_vec])
+            #
+            # elif user_model == "lz-compress-non":
+            #     usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
+            #                                              hidden_dim=self.config.hidden_dim)._build_model()
+            #     clicked_vec = usr_model([clicked_vec, candidate_vec])
+            # else:
+            #     if user_model != "lz-base":
+            #         logging.warning('[!] arch {} not found, using average by default'.format(user_model))
+            #     clicked_vec = models.LzGlobalAveragePooling()(clicked_vec)
+            #
+            # logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
 
         # -------------------------------------------------------------------------------------------------------- #
 
-        self.model = keras.Model([clicked, candidate], logits)
-        self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
-                           loss=self.loss,
-                           metrics=[utils.auc_roc])
         return self.model
 
 
@@ -120,5 +168,5 @@ if __name__ == "__main__":
         print("name: {}\n".format(n))
         model = LzUserModeling(conf)._build_model()
         if n == "lz-eff-org":
-            print(model.summary())
-
+            # print(model.summary())
+            pass

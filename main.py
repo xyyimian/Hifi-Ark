@@ -11,7 +11,8 @@ import document
 import models
 import settings
 import utils
-from Lz_compress import LzUserModeling
+# from Lz_compress import LzUserModeling
+from lz import LzUserModeling
 from test import RunUserModel
 
 

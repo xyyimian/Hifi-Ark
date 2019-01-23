@@ -1,0 +1,1 @@
+python main.py models="lz-eff-org","lz-eff-pos","lz-eff-neg","lz-eff-both" rounds=3 epochs=3

@@ -310,10 +310,10 @@ class LzLogits:
         if self.mode == "mlp":
             cat = keras.layers.concatenate
             hidden = keras.layers.Dense(units=int(usr_vec.shape[-1]), activation="elu")(cat(inputs, axis=-1))
-            logits = keras.layers.Dense(units=1, activation="sigmoid", name="main")(hidden)
+            logits = keras.layers.Dense(units=1, activation="sigmoid")(hidden)
         else:
             assert usr_vec.shape[-1] == doc_vec.shape[-1]
-            logits = keras.layers.Dot(axes=-1, name="main")(inputs)
+            logits = keras.layers.Dot(axes=-1)(inputs)
             logits = keras.layers.Activation('sigmoid')(logits)
         return logits
 
@@ -440,7 +440,7 @@ class LzRecentAttendPredictor:
         self.window_len = window_len
         self.hidden_dim = hidden_dim
         self.mode = mode
-        assert self.mode in ["non", "pos", "neg", "both"]
+        assert self.mode in ["org", "pos", "neg", "both"]
 
     def _build_model(self):
         cutting = keras.layers.Lambda(lambda x: x[:, -self.window_len:, :])
@@ -471,9 +471,9 @@ class LzRecentAttendPredictor:
         # logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
         # logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
 
-        logit_o = LzLogits(mode="mlp")([usr_o, news])
-        logit_p = LzLogits(mode="mlp")([usr_p, news])
-        logit_n = LzLogits(mode="mlp")([usr_n, news])
+        logit_o = LzLogits(mode="dot")([usr_o, news])
+        logit_p = LzLogits(mode="dot")([usr_p, news])
+        logit_n = LzLogits(mode="dot")([usr_n, news])
 
         if self.mode == "pos":
             gates = keras.layers.Dense(units=2, activation="softmax")(news)
@@ -584,7 +584,7 @@ if __name__ == "__main__":
     out = LzExternalQueryAttentionPooling()([docs, views, news])
     print(out.shape, docs.shape)
 
-    model = LzRecentAttendPredictor(100, 3, 200, "non")._build_model()
+    model = LzRecentAttendPredictor(100, 3, 200, "org")._build_model()
     print(model.input_shape, model.output_shape)
     print(model.summary())
 
