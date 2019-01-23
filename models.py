@@ -313,7 +313,8 @@ class LzLogits:
             logits = keras.layers.Dense(units=1, activation="sigmoid", name="main")(hidden)
         else:
             assert usr_vec.shape[-1] == doc_vec.shape[-1]
-            logits = keras.layers.Dot(axes=-1, activation="sigmoid", name="main")(inputs)
+            logits = keras.layers.Dot(axes=-1, name="main")(inputs)
+            logits = keras.layers.Activation('sigmoid')(logits)
         return logits
 
 
