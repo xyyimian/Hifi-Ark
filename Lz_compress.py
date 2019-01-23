@@ -31,13 +31,13 @@ class LzUserModeling(Seq2Vec):
             logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
             self.model = keras.Model([clicked, candidate], logits)
             if "lz-compress-plus" in user_model:
-                self.model.add_loss(self.aux_loss(K.mean(orth_reg)))
+                self.model.add_loss(self.aux_loss(K.sum(orth_reg)))
 
             self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                loss=self.loss,
                                metrics=[utils.auc_roc])
             print("this is where metric tensor is added,\n no sure whether it works...\n")
-            self.model.metrics_tensors += [K.mean(orth_reg)]
+            self.model.metrics_tensors += [K.sum(orth_reg)]
 
             # self.model.metrics_tensors.append(K.mean(orth_reg))
             # self.model.metrics_tensors = [K.mean(orth_reg)]

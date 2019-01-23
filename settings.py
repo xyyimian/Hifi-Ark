@@ -19,7 +19,7 @@ class Config:
                  dropout=0.2,
                  learning_rate=0.001,
                  learning_rate_decay=0.2,
-                 l2_norm_coefficient=0.02,
+                 l2_norm_coefficient=0.01,
                  training_step=11801,       #10000,
                  validation_step=50,        #1000,
                  testing_impression=63793,  #1000,
