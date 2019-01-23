@@ -313,7 +313,7 @@ class LzLogits:
             logits = keras.layers.Dense(units=1, activation="sigmoid", name="main")(hidden)
         else:
             assert usr_vec.shape[-1] == doc_vec.shape[-1]
-            logits = keras.layers.Dot(axes=-1, name="main")(inputs)
+            logits = keras.layers.Dot(axes=-1, activation="sigmoid", name="main")(inputs)
         return logits
 
 
@@ -545,7 +545,7 @@ class LzCompressionPredictor:
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
         matrix = matrix * matrix
         if normalization:
-            matrix /= K.sum(matrix, axis=-1, keepdims=True)
+            matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True))
         mask = K.ones_like(matrix) - K.eye(int(matrix.shape[-1]))
         matrix = matrix * mask
         result = K.sum(matrix, axis=-1, keepdims=False)
@@ -610,4 +610,4 @@ if __name__ == "__main__":
     vec, wei, orth = LzCompressionPredictor(channel_count=3)(docs)
     # vec, wei = LzMultiHeadAttentionWeight(head_count=3)(docs)
     print(docs.shape[:1], 3, docs.shape[1])
-    print(vec.shape, wei.shape, orth.shape, K.sum(orth))
+    print(vec.shape, wei.shape, orth.shape, K.mean(orth))
