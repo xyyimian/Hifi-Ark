@@ -88,7 +88,8 @@ class LzUserModeling(Seq2Vec):
                 self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                    loss=self.loss,
                                    metrics=[utils.auc_roc])
-                print("this is where metric tensor is added,\n no sure whether it works...\n")
+                # print("this is where metric tensor is added,\n no sure whether it works...\n")
+                self.model.metrics_names += ['orth_reg']
                 self.model.metrics_tensors += [K.sum(orth_reg)]
 
             else:

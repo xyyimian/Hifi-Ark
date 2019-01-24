@@ -48,6 +48,7 @@ def train(config):
                 evaluations = model.evaluate_generator(UM.valid,
                                                        config.validation_step,
                                                        verbose=1 if config.debug and not config.background else 2)
+                assert len(evaluations) == len(model.metrics_names)                                             
                 utils.logging_evaluation(dict(zip(model.metrics_names, evaluations)))
             except:
                 pass

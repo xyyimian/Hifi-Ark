@@ -2,6 +2,7 @@ from sequential import *
 from settings import Config
 import models
 import utils
+import ipdb
 
 
 class LzUserModeling(Seq2Vec):
@@ -32,10 +33,10 @@ class LzUserModeling(Seq2Vec):
             self.model = keras.Model([clicked, candidate], logits)
             if "lz-compress-plus" in user_model:
                 self.model.add_loss(self.aux_loss(K.sum(orth_reg)))
-
+            
             self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                loss=self.loss,
-                               metrics=[utils.auc_roc])
+                               metrics=[utils.auc_roc])                 
             print("this is where metric tensor is added,\n no sure whether it works...\n")
             self.model.metrics_tensors += [K.sum(orth_reg)]
 
