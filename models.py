@@ -549,8 +549,11 @@ class LzCompressionPredictor:
             matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True))
         mask = K.ones_like(matrix) - K.eye(int(matrix.shape[-1]))
         matrix = matrix * mask
-        result = K.sum(matrix, axis=-1, keepdims=False)
-        result = K.sum(result, axis=-1, keepdims=True)
+        # result = K.sum(matrix, axis=-1, keepdims=False)
+        # result = K.sum(result, axis=-1, keepdims=True)
+        "updated results"
+        result = K.mean(matrix, axis=-1, keepdims=False)
+        result = K.mean(result, axis=-1, keepdims=True)
         return result
 
 
