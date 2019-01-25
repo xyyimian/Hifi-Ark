@@ -401,7 +401,7 @@ class LzQueryAttentionPooling:
 
 class LzCompressUserEncoder:
 
-    def __init__(self, history_len, hidden_dim, channel_count, enable_pretrain):
+    def __init__(self, history_len, hidden_dim, channel_count, enable_pretrain=False):
         self.history_len = history_len
         self.hidden_dim = hidden_dim
         self.channel_count = channel_count
@@ -597,7 +597,7 @@ class LzCompressionPredictor:
 
     def _off_diag_norm(self, weights, normalization=False):
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
-        matrix = matrix * matrix
+        matrix = K.sqrt(matrix * matrix)
         if normalization:
             matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True)) + K.epsilon()
         mask = K.ones_like(matrix) - K.eye(int(matrix.shape[-1]))
@@ -615,13 +615,13 @@ if __name__ == "__main__":
     docs = keras.layers.Input(shape=(100, 200))
     news = keras.layers.Input(shape=(200,))
 
-    model = LzCompressUserEncoder(100, 200, 4)._build_model()
+    model = LzCompressUserEncoder(100, 200, 4, False)._build_model()
     print(model.input_shape, model.output_shape)
 
     model = LzMultiHeadQueryAttentionPooling(100, 200, 4)._build_model()
     print(model.input_shape, model.output_shape)
 
-    model = LzCompressQueryUserEncoder(100, 200, 1, 4)._build_model()
+    model = LzCompressQueryUserEncoder(100, 200, 1, 4, False)._build_model()
     print(model.input_shape, model.output_shape)
     output = model([docs, news])
     print(output.shape)
