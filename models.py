@@ -566,7 +566,7 @@ class LzCompressionPredictor:
         docs = keras.layers.TimeDistributed(mapping)(docs)
         if self.mode == "Post":
             vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
-            orthodox_reg = self._off_diag_norm(vectors)
+            orthodox_reg = self._off_diag_norm(vectors, normalization=True)
             return vectors, weights, orthodox_reg
         else:
             vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(self.channel_count)(docs)
@@ -576,7 +576,7 @@ class LzCompressionPredictor:
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
         matrix = matrix * matrix
         if normalization:
-            matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True))
+            matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True)) + K.epsilon()
         mask = K.ones_like(matrix) - K.eye(int(matrix.shape[-1]))
         matrix = matrix * mask
         # result = K.sum(matrix, axis=-1, keepdims=False)
