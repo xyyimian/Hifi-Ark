@@ -2,6 +2,8 @@ import keras
 import keras.backend as K
 import numpy as np
 import tensorflow as tf
+import pickle
+from keras.initializers import Initializer
 
 
 "##########################  Basic Functions ##########################"
@@ -186,14 +188,29 @@ class LzGlobalMaxPooling(keras.layers.Layer):
         return input_shape[:-2] + input_shape[-1:]
 
 
+class CustomInitializer(Initializer):
+    def __init__(self, weights):
+        self.weights = weights
+
+    def __call__(self, shape, dtype=None):
+        self.weights.reshape(shape)
+        return tf.convert_to_tensor(self.weights, dtype=dtype)
+
 class LzInnerSingleHeadAttentionPooling(keras.layers.Layer):
-    def __init__(self, **kwargs):
+
+
+    def __init__(self, pre_weights = None, **kwargs):
         super(LzInnerSingleHeadAttentionPooling, self).__init__(**kwargs)
         self.supports_masking = True
+        self.pre_weights = pre_weights
 
     def build(self, input_shape):
+        if self.weights:
+            initializer = CustomInitializer(self.weights)
+        else:
+            initializer = keras.initializers.uniform()
         self.att_vec = self.add_weight(shape=(input_shape[2],1),
-                                       initializer="uniform",
+                                       initializer=initializer,
                                        # regularizer=keras.regularizers.l2(0.01),
                                        name='{}_ATT'.format(self.name))
         super(LzInnerSingleHeadAttentionPooling, self).build(input_shape)
@@ -384,11 +401,17 @@ class LzQueryAttentionPooling:
 
 class LzCompressUserEncoder:
 
-    def __init__(self, history_len, hidden_dim, channel_count):
+    def __init__(self, history_len, hidden_dim, channel_count, enable_pretrain):
         self.history_len = history_len
         self.hidden_dim = hidden_dim
         self.channel_count = channel_count
-        self.pool_heads = [LzInnerSingleHeadAttentionPooling() for _ in range(channel_count)]
+        if enable_pretrain:
+            with open('./models/AutoEncoder_' + str(channel_count) + '.pkl', 'rb') as p:
+                pre_weights_biases = pickle.load(p)
+            pre_weights = pre_weights_biases[0]
+            self.pool_heads = [LzInnerSingleHeadAttentionPooling(pre_weights=pre_weights[_]) for _ in range(channel_count)]
+        else:
+            self.pool_heads = [LzInnerSingleHeadAttentionPooling(pre_weights=None) for _ in range(channel_count)]
 
     def _build_model(self):
         docs = keras.layers.Input(shape=(self.history_len, self.hidden_dim))
@@ -403,12 +426,12 @@ class LzCompressUserEncoder:
 
 class LzCompressQueryUserEncoder:
 
-    def __init__(self, history_len, hidden_dim, head_count, channel_count):
+    def __init__(self, history_len, hidden_dim, head_count, channel_count, enable_pretrain):
         self.history_len = history_len
         self.hidden_dim = hidden_dim
         self.head_count = head_count
         self.channel_count = channel_count
-        self.compressor = LzCompressUserEncoder(history_len, hidden_dim, channel_count)._build_model()
+        self.compressor = LzCompressUserEncoder(history_len, hidden_dim, channel_count, enable_pretrain)._build_model()
         self.summarizer = LzMultiHeadQueryAttentionPooling(history_len, hidden_dim, head_count)._build_model()
 
     def _build_model(self):

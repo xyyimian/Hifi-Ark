@@ -108,7 +108,8 @@ class LzUserModeling(Seq2Vec):
                     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
                                                                   hidden_dim=self.config.hidden_dim,
                                                                   channel_count=channel_count,
-                                                                  head_count=1)._build_model()
+                                                                  head_count=1,
+                                                                  enable_pretrain=self.config.enable_pretrain_attention)._build_model()
                     clicked_vec = usr_model([clicked_vec, candidate_vec])
 
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
