@@ -12,6 +12,7 @@ class Config:
                  textual_embedding_trainable=False,
                  enable_baseline=True,
                  enable_pretrain_encoder=False, #True,
+                 enable_pretrain_attention=True,
                  epochs=3,
                  batch_size=200,            #100,
                  rounds=1,
@@ -50,6 +51,7 @@ class Config:
         self.textual_embedding_trainable = textual_embedding_trainable
         self.pretrain_encoder_trainable = pretrain_encoder_trainable
         self.enable_pretrain_encoder = enable_pretrain_encoder
+        self.enable_pretrain_attention = enable_pretrain_attention
         self.enable_baseline = enable_baseline
         self.l2_norm_coefficient = l2_norm_coefficient
         self.learning_rate_decay = learning_rate_decay
