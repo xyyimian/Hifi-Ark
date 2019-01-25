@@ -98,6 +98,22 @@ class LzUserModeling(Seq2Vec):
                 else:
                     self.model.metrics_tensors += [K.sum(orth_reg)]
 
+            elif "lz-compress-pre-plus" in user_model:
+                channel_count = int(user_model.split("-")[-1])
+                clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+                clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+
+                logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+                self.model = keras.Model([clicked, candidate], logits)
+                self.config.l2_norm_coefficient = 0.1
+                self.model.add_loss(self.aux_loss(orth_reg))
+
+                self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                                   loss=self.loss,
+                                   metrics=[utils.auc_roc])
+                self.model.metrics_names += ['orth_reg']
+                self.model.metrics_tensors += [orth_reg]
+
             else:
                 if "-non" in user_model:
                     usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
@@ -169,8 +185,9 @@ if __name__ == "__main__":
     conf = Config()
     names = ["lz-eff-org", "lz-eff-pos", "lz-eff-neg", "lz-eff-both",
              "lz-compress-1", "lz-compress-3", "lz-compress-10",
-             "lz-compress-non"]
-    for n in names:
+             "lz-compress-non", "lz-compress-pre-plus-5"]
+    names_ = ["lz-compress-pre-plus-5"]
+    for n in names_:
         conf.arch = n
         print("name: {}\n".format(n))
         model = LzUserModeling(conf)._build_model()

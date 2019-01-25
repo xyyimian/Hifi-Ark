@@ -528,19 +528,49 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
                 (input_shape[0], self.head_count, input_shape[1])]
 
 
+class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
+    def call(self, inputs, **kwargs):
+        value, mask = inputs, LzComputeMasking(0)(inputs)
+        vectors, weights = [], []
+        # "------- attention calculation -------"
+        for head in self.attention_heads:
+            ait = K.squeeze(K.dot(value, head), axis=-1)
+            a = K.exp(ait)
+            if mask is not None:
+                a *= K.cast(mask, K.floatx())
+            a /= K.cast(K.sum(a, axis=-1, keepdims=True) + K.epsilon(), K.floatx())
+            vectors.append(K.expand_dims(keras.layers.dot([value, a], axes=1), axis=1))
+            weights.append(K.expand_dims(a, axis=1))
+        # "----- orthogonal regularization -----"
+        heads = K.concatenate(self.attention_heads, axis=1)
+        orth_reg = K.batch_dot(heads, K.transpose(heads))
+        orth_reg = K.mean(orth_reg, axis=-1, keepdims=False)
+        orth_reg = K.mean(orth_reg, axis=-1, keepdims=True)
+
+        return [keras.layers.concatenate(vectors, axis=1),
+                orth_reg]
+
+    def compute_output_shape(self, input_shape):
+        return [(input_shape[0], self.head_count, input_shape[2]),
+                (1,)]
+
+
 class LzCompressionPredictor:
-    def __init__(self, channel_count):
+    def __init__(self, channel_count, mode="Post"):
         self.channel_count = channel_count
+        self.mode = mode
 
     def __call__(self, docs, *args, **kwargs):
         hidden_dim = int(docs.shape[-1])
         mapping = keras.layers.Dense(units=hidden_dim, activation="elu", use_bias=False)
         docs = keras.layers.TimeDistributed(mapping)(docs)
-        vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
-        # summing = keras.layers.Lambda(self._off_diag_norm, name="aux")
-        # results = summing(vectors)
-        orthodox_reg = self._off_diag_norm(vectors)
-        return vectors, weights, orthodox_reg
+        if self.mode == "Post":
+            vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
+            orthodox_reg = self._off_diag_norm(vectors)
+            return vectors, weights, orthodox_reg
+        else:
+            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(self.channel_count)(docs)
+            return vectors, orthodox_reg
 
     def _off_diag_norm(self, weights, normalization=False):
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
@@ -615,3 +645,10 @@ if __name__ == "__main__":
     # vec, wei = LzMultiHeadAttentionWeight(head_count=3)(docs)
     print(docs.shape[:1], 3, docs.shape[1])
     print(vec.shape, wei.shape, orth.shape, K.mean(orth))
+
+    vec, orth = LzCompressionPredictor(channel_count=3, mode="Pre")(docs)
+    print(vec.shape, orth.shape)
+
+    print("\n--------- compress -----------\n")
+    vec, orth = LzMultiHeadAttentionWeightOrth(head_count=3)(docs)
+    print(vec.shape, orth.shape)
