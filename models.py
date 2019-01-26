@@ -552,6 +552,11 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
 
 
 class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
+    
+    def __init__(self, normalize=False, **kwargs):
+        self.normalize = normalize
+        super(LzMultiHeadAttentionWeightOrth, self).__init__(**kwargs)
+
     def call(self, inputs, **kwargs):
         value, mask = inputs, LzComputeMasking(0)(inputs)
         vectors, weights = [], []
@@ -567,6 +572,11 @@ class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
         # "----- orthogonal regularization -----"
         heads = K.concatenate(self.attention_heads, axis=1)
         orth_reg = K.batch_dot(heads, K.transpose(heads))
+
+        if self.normalize:
+            norm_item = K.sqrt(K.sum(orth_reg*orth_reg, axis=-1, keepdims=True)) + K.epsilon()
+            orth_reg /= norm_item
+
         orth_reg = K.mean(orth_reg, axis=-1, keepdims=False)
         orth_reg = K.mean(orth_reg, axis=-1, keepdims=True)
 
@@ -592,14 +602,13 @@ class LzCompressionPredictor:
             orthodox_reg = self._off_diag_norm(vectors, normalization=True)
             return vectors, weights, orthodox_reg
         else:
-            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(self.channel_count)(docs)
+            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count)(docs)
             return vectors, orthodox_reg
 
     def _off_diag_norm(self, weights, normalization=False):
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
-        matrix = K.sqrt(matrix * matrix)
         if normalization:
-            matrix /= K.sqrt(K.sum(matrix, axis=-1, keepdims=True)) + K.epsilon()
+            matrix /= K.sqrt(K.sum(matrix*matrix, axis=-1, keepdims=True)) + K.epsilon()
         mask = K.ones_like(matrix) - K.eye(int(matrix.shape[-1]))
         matrix = matrix * mask
         # result = K.sum(matrix, axis=-1, keepdims=False)

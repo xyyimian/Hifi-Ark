@@ -75,6 +75,8 @@ class LzUserModeling(Seq2Vec):
 
         else:
 
+            # ------------   Orthogonal regularization is added to compression vectors   ------------
+
             if "lz-compress-plus" in user_model:
                 channel_count = int(user_model.split("-")[-1])
                 clicked_vec, weights, orth_reg = models.LzCompressionPredictor(channel_count=channel_count)(clicked_vec)
@@ -98,6 +100,8 @@ class LzUserModeling(Seq2Vec):
                 else:
                     self.model.metrics_tensors += [K.sum(orth_reg)]
 
+            # ------------   Orthogonal regularization is added to pooling vectors   ------------
+
             elif "lz-compress-pre-plus" in user_model:
                 channel_count = int(user_model.split("-")[-1])
                 clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
@@ -113,6 +117,8 @@ class LzUserModeling(Seq2Vec):
                                    metrics=[utils.auc_roc])
                 self.model.metrics_names += ['orth_reg']
                 self.model.metrics_tensors += [orth_reg]
+
+            # -------------   Vanilla compression, use randomized pooling vectors   -------------
 
             else:
                 if "-non" in user_model:
