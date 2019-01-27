@@ -573,7 +573,7 @@ class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
         heads = K.concatenate(self.attention_heads, axis=1)
         # updated normalization  --Jan 27th
         if self.normalize:
-            heads /= K.sqrt(K.sum(heads, axis=-1, keepdims=True)) + K.epsilon()
+            heads /= K.sqrt(K.sum(heads*heads, axis=-1, keepdims=True)) + K.epsilon()
         orth_reg = K.batch_dot(heads, K.transpose(heads))
         orth_reg = K.mean(orth_reg, axis=-1, keepdims=False)
         orth_reg = K.mean(orth_reg, axis=-1, keepdims=True)
@@ -610,7 +610,7 @@ class LzCompressionPredictor:
     def _off_diag_norm(self, weights, normalization=False):
         # updated normalization --Jan 27th
         if normalization:
-            weights /= K.sqrt(K.sum(weights, axis=-1, keepdims=True)) + K.epsilon()
+            weights /= K.sqrt(K.sum(weights*weights, axis=-1, keepdims=True)) + K.epsilon()
         matrix = K.batch_dot(weights, K.permute_dimensions(weights, (0, 2, 1)))
         # if normalization:
         #     matrix /= K.sqrt(K.sum(matrix*matrix, axis=-1, keepdims=True)) + K.epsilon()
