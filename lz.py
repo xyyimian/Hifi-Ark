@@ -26,45 +26,45 @@ class LzUserModeling(Seq2Vec):
         if "eff" in user_model:
 
             mode = user_model.split("-")[-1]
-            _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-                                                    window_len=2,
-                                                    hidden_dim=self.config.hidden_dim,
-                                                    mode=mode)._build_model()
-            logits = _model([clicked_vec, candidate_vec])
+            # _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+            #                                         window_len=2,
+            #                                         hidden_dim=self.config.hidden_dim,
+            #                                         mode=mode)._build_model()
+            # logits = _model([clicked_vec, candidate_vec])
 
-            # if user_model == "lz-eff-org":
-            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-            #                                             window_len=2,
-            #                                             hidden_dim=self.config.hidden_dim,
-            #                                             mode="org")._build_model()
-            #     logits = _model([clicked_vec, candidate_vec])
-            #
-            # elif user_model == "lz-eff-pos":
-            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-            #                                             window_len=2,
-            #                                             hidden_dim=self.config.hidden_dim,
-            #                                             mode="pos")._build_model()
-            #     logits = _model([clicked_vec, candidate_vec])
-            #
-            # elif user_model == "lz-eff-neg":
-            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-            #                                             window_len=2,
-            #                                             hidden_dim=self.config.hidden_dim,
-            #                                             mode="neg")._build_model()
-            #     logits = _model([clicked_vec, candidate_vec])
-            #
-            # elif user_model == "lz-eff-both":
-            #     _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
-            #                                             window_len=2,
-            #                                             hidden_dim=self.config.hidden_dim,
-            #                                             mode="both")._build_model()
-            #     logits = _model([clicked_vec, candidate_vec])
+            if user_model == "lz-eff-org":
+                _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+                                                        window_len=2,
+                                                        hidden_dim=self.config.hidden_dim,
+                                                        mode="org")._build_model()
+                logits = _model([clicked_vec, candidate_vec])
 
-            # else:
-            #     if user_model != "lz-base":
-            #         logging.warning('[!] arch {} not found, using average by default'.format(user_model))
-            #     clicked_vec = models.LzGlobalAveragePooling()(clicked_vec)
-            #     logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
+            elif user_model == "lz-eff-pos":
+                _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+                                                        window_len=2,
+                                                        hidden_dim=self.config.hidden_dim,
+                                                        mode="pos")._build_model()
+                logits = _model([clicked_vec, candidate_vec])
+
+            elif user_model == "lz-eff-neg":
+                _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+                                                        window_len=2,
+                                                        hidden_dim=self.config.hidden_dim,
+                                                        mode="neg")._build_model()
+                logits = _model([clicked_vec, candidate_vec])
+
+            elif user_model == "lz-eff-both":
+                _model = models.LzRecentAttendPredictor(history_len=self.config.window_size,
+                                                        window_len=2,
+                                                        hidden_dim=self.config.hidden_dim,
+                                                        mode="both")._build_model()
+                logits = _model([clicked_vec, candidate_vec])
+
+            else:
+                if user_model != "lz-base":
+                    logging.warning('[!] arch {} not found, using average by default'.format(user_model))
+                clicked_vec = models.LzGlobalAveragePooling()(clicked_vec)
+                logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
 
             self.model = keras.Model([clicked, candidate], logits)
             self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
