@@ -82,6 +82,9 @@ class LzUserModeling(Seq2Vec):
                 clicked_vec, weights, orth_reg = models.LzCompressionPredictor(channel_count=channel_count)(clicked_vec)
                 clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
+                # adjust the orthogonal regularization coefficient
+                self.config.l2_norm_coefficient /= (channel_count/3.0)**0.5
+
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
                 self.model = keras.Model([clicked, candidate], logits)
                 if "mean" in user_model:
@@ -106,6 +109,9 @@ class LzUserModeling(Seq2Vec):
                 channel_count = int(user_model.split("-")[-1])
                 clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
                 clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+
+                # adjust the orthogonal regularization coefficient
+                self.config.l2_norm_coefficient /= (channel_count / 3.0) ** 0.5
 
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
                 self.model = keras.Model([clicked, candidate], logits)
