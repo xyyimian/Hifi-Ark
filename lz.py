@@ -111,6 +111,7 @@ class LzUserModeling(Seq2Vec):
             elif "lz-compress-pre-plus" in user_model:
                 channel_count = int(user_model.split("-")[-1])
                 clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+                orth_reg = orth_reg[0]
                 clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
                 # adjust the orthogonal regularization coefficient
@@ -138,6 +139,8 @@ class LzUserModeling(Seq2Vec):
                     clicked_vec = usr_model([clicked_vec, candidate_vec])
                 else:
                     channel_count = int(user_model.split("-")[-1])
+                    clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+                    orth_reg = orth_reg[0]                    
                     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
                                                                   hidden_dim=self.config.hidden_dim,
                                                                   channel_count=channel_count,
@@ -147,9 +150,15 @@ class LzUserModeling(Seq2Vec):
 
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
                 self.model = keras.Model([clicked, candidate], logits)
+                self.config.l2_norm_coefficient = 0.1
+
+                # adjust the orthogonal regularization coefficient
+                self.model.add_loss(self.aux_loss(orth_reg * (channel_count/3.0)**0.75))                
                 self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                    loss=self.loss,
                                    metrics=[utils.auc_roc])
+                self.model.metrics_names += ['orth_reg']
+                self.model.metrics_tensors += [orth_reg]                                   
 
             # if user_model == "lz-compress-1":
             #     usr_model = models.LzCompressQueryUserEncoder(history_len=self.config.window_size,
