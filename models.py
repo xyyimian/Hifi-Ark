@@ -486,17 +486,17 @@ class LzRecentAttendPredictor:
                               keras.layers.dot([docs, w_pos], axes=(1, 1)), \
                               keras.layers.dot([docs, w_neg], axes=(1, 1))
 
-        # hidden_o = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_o, news], axis=-1))
-        # hidden_p = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_p, news], axis=-1))
-        # hidden_n = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_n, news], axis=-1))
-        #
-        # logit_o = keras.layers.Dense(units=1, activation="sigmoid")(hidden_o)
-        # logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
-        # logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
+        hidden_o = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_o, news], axis=-1))
+        hidden_p = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_p, news], axis=-1))
+        hidden_n = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_n, news], axis=-1))
 
-        logit_o = LzLogits(mode="dot")([usr_o, news])
-        logit_p = LzLogits(mode="dot")([usr_p, news])
-        logit_n = LzLogits(mode="dot")([usr_n, news])
+        logit_o = keras.layers.Dense(units=1, activation="sigmoid")(hidden_o)
+        logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
+        logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
+
+        # logit_o = LzLogits(mode="mlp")([usr_o, news])
+        # logit_p = LzLogits(mode="mlp")([usr_p, news])
+        # logit_n = LzLogits(mode="mlp")([usr_n, news])
 
         if self.mode == "pos":
             gates = keras.layers.Dense(units=2, activation="softmax")(news)
