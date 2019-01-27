@@ -83,15 +83,18 @@ class LzUserModeling(Seq2Vec):
                 clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
                 # adjust the orthogonal regularization coefficient
-                self.config.l2_norm_coefficient /= (channel_count/3.0)**0.5
+                # self.config.l2_norm_coefficient /= (channel_count/3.0)**0.5
 
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
                 self.model = keras.Model([clicked, candidate], logits)
                 if "mean" in user_model:
                     self.config.l2_norm_coefficient = 0.1
-                    self.model.add_loss(self.aux_loss(K.mean(orth_reg)))
+                    # adjust the orthogonal regularization coefficient
+                    self.model.add_loss(self.aux_loss(orth_reg * (channel_count/3.0)**0.75))
+                    # self.model.add_loss(self.aux_loss(K.mean(orth_reg) * (channel_count/3.0)**0.75))
                 else:
-                    self.model.add_loss(self.aux_loss(K.sum(orth_reg)))
+                    # adjust the orthogonal regularization coefficient
+                    self.model.add_loss(self.aux_loss(K.sum(orth_reg) * (channel_count/3.0)**0.75))
 
                 self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                    loss=self.loss,
@@ -99,9 +102,9 @@ class LzUserModeling(Seq2Vec):
                 # print("this is where metric tensor is added,\n no sure whether it works...\n")
                 self.model.metrics_names += ['orth_reg']
                 if "mean" in user_model:
-                    self.model.metrics_tensors += [K.mean(orth_reg)]
+                    self.model.metrics_tensors += [K.mean(orth_reg) * (channel_count/3.0)**0.75]
                 else:
-                    self.model.metrics_tensors += [K.sum(orth_reg)]
+                    self.model.metrics_tensors += [K.sum(orth_reg) * (channel_count/3.0)**0.75]
 
             # ------------   Orthogonal regularization is added to pooling vectors   ------------
 
@@ -111,12 +114,14 @@ class LzUserModeling(Seq2Vec):
                 clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
                 # adjust the orthogonal regularization coefficient
-                self.config.l2_norm_coefficient /= (channel_count / 3.0) ** 0.5
+                # self.config.l2_norm_coefficient /= (channel_count / 3.0) ** 0.75
 
                 logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
                 self.model = keras.Model([clicked, candidate], logits)
                 self.config.l2_norm_coefficient = 0.1
-                self.model.add_loss(self.aux_loss(orth_reg))
+
+                # adjust the orthogonal regularization coefficient
+                self.model.add_loss(self.aux_loss(orth_reg * (channel_count/3.0)**0.75))
 
                 self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
                                    loss=self.loss,
