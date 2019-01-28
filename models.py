@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import pickle
 from keras.initializers import Initializer
+import logging
 
 
 "##########################  Basic Functions ##########################"
@@ -329,6 +330,7 @@ class LzLogits:
             hidden = keras.layers.Dense(units=int(usr_vec.shape[-1]), activation="elu")(cat(inputs, axis=-1))
             logits = keras.layers.Dense(units=1, activation="sigmoid")(hidden)
         else:
+            logging.info("Dot logit applied")
             assert usr_vec.shape[-1] == doc_vec.shape[-1]
             logits = keras.layers.Dot(axes=-1)(inputs)
             logits = keras.layers.Activation('sigmoid')(logits)
@@ -494,9 +496,9 @@ class LzRecentAttendPredictor:
         # logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
         # logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
 
-        logit_o = LzLogits(mode="mlp")([usr_o, news])
-        logit_p = LzLogits(mode="mlp")([usr_p, news])
-        logit_n = LzLogits(mode="mlp")([usr_n, news])
+        logit_o = LzLogits(mode="dot")([usr_o, news])
+        logit_p = LzLogits(mode="dot")([usr_p, news])
+        logit_n = LzLogits(mode="dot")([usr_n, news])
 
         if self.mode == "pos":
             gates = keras.layers.Dense(units=2, activation="softmax")(news)
@@ -530,7 +532,7 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
                 pre_weights_biases = pickle.load(p)
             pre_weights = pre_weights_biases[0]
             self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
-                                                    initializer=CustomInitializer(pre_weights[i]),
+                                                    initializer=CustomInitializer(pre_weights[i].reshape((input_shape[2],1))),
                                                     name="head-{}".format(i))
                                     for i in range(self.head_count)]
         else:
@@ -567,9 +569,10 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
 
 class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
     
-    def __init__(self, normalize=False, **kwargs):
+    def __init__(self, normalize=False, enable_pretrain_attention = False, **kwargs):
         self.normalize = normalize
-        super(LzMultiHeadAttentionWeightOrth, self).__init__(**kwargs)
+        self.enable_pretrain_attention = enable_pretrain_attention
+        super(LzMultiHeadAttentionWeightOrth, self).__init__(enable_pretrain_attention = self.enable_pretrain_attention, **kwargs)
 
     def call(self, inputs, **kwargs):
         value, mask = inputs, LzComputeMasking(0)(inputs)
@@ -619,7 +622,7 @@ class LzCompressionPredictor:
             orthodox_reg = self._off_diag_norm(vectors, normalization=True)
             return vectors, weights, orthodox_reg
         else:
-            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count)(docs)
+            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count, enable_pretrain_attention = self.enable_pretrain_attention)(docs)
             return vectors, orthodox_reg
 
     def _off_diag_norm(self, weights, normalization=False):

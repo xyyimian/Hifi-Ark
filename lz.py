@@ -31,6 +31,7 @@ class LzUserModeling(Seq2Vec):
                                                     hidden_dim=self.config.hidden_dim,
                                                     mode=mode)._build_model()
             logits = _model([clicked_vec, candidate_vec])
+            # logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
 
             # else:
             #     if user_model != "lz-base":
@@ -112,6 +113,7 @@ class LzUserModeling(Seq2Vec):
                 else:
                     channel_count = int(user_model.split("-")[-1])
                     #----------pretrain+preplus
+                    self.config.enable_pretrain_attention = True
                     clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre", enable_pretrain_attention = self.config.enable_pretrain_attention)(clicked_vec)
                     orth_reg = orth_reg[0]
                     clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)                    
