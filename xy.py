@@ -40,7 +40,8 @@ class XyAutoEncoder(Seq2Vec):
 
         docs = keras.Input((self.input_dim, ))
         hidden_vec = keras.layers.Dense(hidden_dim, activation = "sigmoid")(docs)
-        output_vec = keras.layers.Dense(input_dim, bias_constraint=ZeroConstraints())(hidden_vec)
+        # output_vec = keras.layers.Dense(input_dim, bias_constraint=ZeroConstraints())(hidden_vec)
+        output_vec = keras.layers.Dense(input_dim, use_bias = False)(hidden_vec)
         self.model = keras.Model(docs, output_vec)
         optimizer = keras.optimizers.Adam(lr=0.01, decay=1e-3)
         self.model.compile(optimizer = optimizer,

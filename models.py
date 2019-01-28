@@ -481,22 +481,22 @@ class LzRecentAttendPredictor:
         w_org, w_pos, w_neg = LzExternalAttentionWeight(reverse=False)([docs, q_news]), \
                               LzExternalAttentionWeight(reverse=False)([docs, q_views]), \
                               LzExternalAttentionWeight(reverse=True)([docs, q_views])
-        w_pos, w_neg = normalizing([w_org, w_pos]), normalizing([w_org, w_neg])
+        w_pos, w_neg = normalizing([w_org, w_pos]), normalizing([w_org, w_neg])  #???
         usr_o, usr_p, usr_n = keras.layers.dot([docs, w_org], axes=(1, 1)), \
                               keras.layers.dot([docs, w_pos], axes=(1, 1)), \
                               keras.layers.dot([docs, w_neg], axes=(1, 1))
 
-        hidden_o = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_o, news], axis=-1))
-        hidden_p = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_p, news], axis=-1))
-        hidden_n = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_n, news], axis=-1))
+        # hidden_o = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_o, news], axis=-1))
+        # hidden_p = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_p, news], axis=-1))
+        # hidden_n = keras.layers.Dense(units=self.hidden_dim, activation="elu")(cat([usr_n, news], axis=-1))
 
-        logit_o = keras.layers.Dense(units=1, activation="sigmoid")(hidden_o)
-        logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
-        logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
+        # logit_o = keras.layers.Dense(units=1, activation="sigmoid")(hidden_o)
+        # logit_p = keras.layers.Dense(units=1, activation="sigmoid")(hidden_p)
+        # logit_n = keras.layers.Dense(units=1, activation="sigmoid")(hidden_n)
 
-        # logit_o = LzLogits(mode="mlp")([usr_o, news])
-        # logit_p = LzLogits(mode="mlp")([usr_p, news])
-        # logit_n = LzLogits(mode="mlp")([usr_n, news])
+        logit_o = LzLogits(mode="mlp")([usr_o, news])
+        logit_p = LzLogits(mode="mlp")([usr_p, news])
+        logit_n = LzLogits(mode="mlp")([usr_n, news])
 
         if self.mode == "pos":
             gates = keras.layers.Dense(units=2, activation="softmax")(news)
@@ -516,17 +516,28 @@ class LzRecentAttendPredictor:
 
 
 class LzMultiHeadAttentionWeight(keras.layers.Layer):
-    def __init__(self, head_count, **kwargs):
+    def __init__(self, head_count, enable_pretrain_attention = False, **kwargs):
         super(LzMultiHeadAttentionWeight, self).__init__(**kwargs)
         self.init = keras.initializers.get('glorot_uniform')
         self.supports_masking = True
         self.head_count = head_count
+        self.enable_pretrain_attention = enable_pretrain_attention
 
     def build(self, input_shape):
-        self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
-                                                initializer=self.init,
-                                                name="head-{}".format(i))
-                                for i in range(self.head_count)]
+        if self.enable_pretrain_attention:
+            logging.info("Pretrain Method Applied")
+            with open('./models/AutoEncoder_' + str(self.head_count) + '.pkl', 'rb') as p:
+                pre_weights_biases = pickle.load(p)
+            pre_weights = pre_weights_biases[0]
+            self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
+                                                    initializer=CustomInitializer(pre_weights[i]),
+                                                    name="head-{}".format(i))
+                                    for i in range(self.head_count)]
+        else:
+            self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
+                                        initializer=self.init,
+                                        name="head-{}".format(i))
+                                    for i in range(self.head_count)]
         super(LzMultiHeadAttentionWeight, self).build(input_shape)
 
     def compute_mask(self, input, input_mask=None):
@@ -545,6 +556,9 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
             weights.append(K.expand_dims(a, axis=1))
         return [keras.layers.concatenate(vectors, axis=1),
                 keras.layers.concatenate(weights, axis=1)]
+
+
+
 
     def compute_output_shape(self, input_shape):
         return [(input_shape[0], self.head_count, input_shape[2]),
@@ -591,16 +605,17 @@ class LzMultiHeadAttentionWeightOrth(LzMultiHeadAttentionWeight):
 
 
 class LzCompressionPredictor:
-    def __init__(self, channel_count, mode="Post"):
+    def __init__(self, channel_count, mode="Post", enable_pretrain_attention = False):
         self.channel_count = channel_count
         self.mode = mode
+        self.enable_pretrain_attention = enable_pretrain_attention
 
     def __call__(self, docs, *args, **kwargs):
         hidden_dim = int(docs.shape[-1])
         mapping = keras.layers.Dense(units=hidden_dim, activation="elu", use_bias=False)
         docs = keras.layers.TimeDistributed(mapping)(docs)
         if self.mode == "Post":
-            vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
+            vectors, weights = LzMultiHeadAttentionWeight(self.channel_count, self.enable_pretrain_attention)(docs)
             orthodox_reg = self._off_diag_norm(vectors, normalization=True)
             return vectors, weights, orthodox_reg
         else:
