@@ -359,6 +359,14 @@ class MxQueryAttentionMasked(keras.layers.Layer):
         return input_shape[0][:-2] + input_shape[0][-1:]
 
 
+"####################################   Self-Attention Modules   ####################################"
+
+class SelfAttention:
+    def __init__(self):
+        pass
+
+
+
 "########################################  User Encoder  ########################################"
 
 
@@ -467,9 +475,8 @@ class LzRecentAttendPredictor:
 
     def _build_model(self):
         cutting = keras.layers.Lambda(lambda x: x[:, -self.window_len:, :])
-        # K.cast(K.sum(a, axis=-1, keepdims=True) + K.epsilon(), K.floatx())
-        normalizing = keras.layers.Lambda(lambda x: x[0]*x[1]/
-                      K.cast(K.sum(x[0]*x[1], axis=-1, keepdims=True) + K.epsilon(), K.floatx()))
+        normalizing = keras.layers.Lambda(lambda x: x[0]*x[1]/K.cast(K.sum(x[0]*x[1], axis=-1, keepdims=True)
+                                                                     + K.epsilon(), K.floatx()))
         mapping = keras.layers.Dense(units=self.hidden_dim, activation="elu", use_bias=False)
         cat = keras.layers.concatenate
 
@@ -601,7 +608,7 @@ class LzCompressionPredictor:
         docs = keras.layers.TimeDistributed(mapping)(docs)
         if self.mode == "Post":
             vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
-            orthodox_reg = self._off_diag_norm(vectors, normalization=True)
+            orthodox_reg = self._off_diag_norm(weights, normalization=True)
             return vectors, weights, orthodox_reg
         else:
             vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count)(docs)
