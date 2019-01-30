@@ -1,0 +1,1 @@
+python main.py models="lz-ls-auto-query","lz-ls-auto-att","gru","lz-att-query","lz-base" rounds=5 epochs=3
