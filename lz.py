@@ -4,7 +4,7 @@ import models
 import utils
 
 
-class LzUserModeling(Seq2Vec):
+class LzUserModelingOrigin(Seq2Vec):
     def _build_model(self):
         self.doc_encoder = doc_encoder = self.get_doc_encoder()
         user_encoder = keras.layers.TimeDistributed(doc_encoder)
@@ -179,23 +179,262 @@ class LzUserModeling(Seq2Vec):
         return self.model
 
 
+class LzUserModelingSelf(LzUserModelingOrigin):
+    # "----------------------------   with self attention added as extra dimensions   ----------------------------" #
+    def _build_model(self):
+        self.doc_encoder = doc_encoder = self.get_doc_encoder()
+        user_encoder = keras.layers.TimeDistributed(doc_encoder)
+
+        clicked = keras.Input((self.config.window_size, self.config.title_shape))
+        candidate = keras.Input((self.config.title_shape,))
+
+        clicked_vec = user_encoder(clicked)
+        candidate_vec = doc_encoder(candidate)
+
+        mask = models.LzComputeMasking(0)(clicked)
+        clicked_vec = keras.layers.Lambda(lambda x: x[0] * keras.backend.expand_dims(x[1]))([clicked_vec, mask])
+
+        user_model = self.config.arch
+        logging.info('[!] Selecting User Model: {}'.format(user_model))
+
+        # ------------------------------------------    Task Compression    ------------------------------------------ #
+
+        if "lz-compress-plus" in user_model:
+            channel_count = int(user_model.split("-")[-1])
+
+            o_click_vec, weights, orth_reg = models.LzCompressionPredictor(channel_count=channel_count)(clicked_vec)
+            o_click_vec = models.LzQueryAttentionPooling()(o_click_vec, candidate_vec)
+
+            x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+            x_click_vec, weights, _ = models.LzCompressionPredictor(channel_count=channel_count)(x_click_vec)
+            x_click_vec = models.LzQueryAttentionPooling()(x_click_vec, candidate_vec)
+
+            # ----------   uncommented for mlp   ---------- #
+            # clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=-1)
+            # logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
+
+            dim_expand = keras.layers.Lambda(lambda x: K.expand_dims(x, axis=1))
+            o_click_vec, x_click_vec = dim_expand(o_click_vec), dim_expand(x_click_vec)
+
+            clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=1)
+            clicked_vec = keras.layers.Lambda(lambda x: K.mean(x, axis=1, keepdims=False))(clicked_vec)
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            if "mean" in user_model:
+                self.config.l2_norm_coefficient = 0.1
+                self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            else:
+                self.model.add_loss(self.aux_loss(K.sum(orth_reg) * (channel_count / 3.0) ** 0.75))
+
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+
+            self.model.metrics_names += ['orth_reg']
+            if "mean" in user_model:
+                self.model.metrics_tensors += [K.mean(orth_reg) * (channel_count / 3.0) ** 0.75]
+            else:
+                self.model.metrics_tensors += [K.sum(orth_reg) * (channel_count / 3.0) ** 0.75]
+
+        # ------------   Orthogonal regularization is added to pooling vectors   ------------
+
+        elif "lz-compress-pre-plus" in user_model:
+            channel_count = int(user_model.split("-")[-1])
+            o_click_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+            orth_reg = orth_reg[0]
+            o_click_vec = models.LzQueryAttentionPooling()(o_click_vec, candidate_vec)
+
+            x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+            x_click_vec, _ = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(x_click_vec)
+            x_click_vec = models.LzQueryAttentionPooling()(x_click_vec, candidate_vec)
+
+            # ----------   uncommented for mlp   ---------- #
+            # clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=-1)
+            # logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
+
+            dim_expand = keras.layers.Lambda(lambda x: K.expand_dims(x, axis=1))
+            o_click_vec, x_click_vec = dim_expand(o_click_vec), dim_expand(x_click_vec)
+            clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=1)
+            clicked_vec = keras.layers.Lambda(lambda x: K.mean(x, axis=1, keepdims=False))(clicked_vec)
+
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            self.config.l2_norm_coefficient = 0.1
+            self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+            self.model.metrics_names += ['orth_reg']
+            self.model.metrics_tensors += [orth_reg]
+
+        # -------------   Vanilla compression, use randomized pooling vectors   -------------
+
+        else:
+            if "-non" in user_model:
+                usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
+                                                         hidden_dim=self.config.hidden_dim)._build_model()
+                o_click_vec = usr_model([clicked_vec, candidate_vec])
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                x_click_vec = usr_model([x_click_vec, candidate_vec])
+            else:
+                channel_count = int(user_model.split("-")[-1])
+                self.config.enable_pretrain_attention = True
+                o_click_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre",
+                                                                      enable_pretrain_attention=self.config.enable_pretrain_attention)(clicked_vec)
+                o_click_vec = models.LzQueryAttentionPooling()(o_click_vec, candidate_vec)
+                orth_reg = orth_reg[0]
+
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                x_click_vec, _ = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre",
+                                                               enable_pretrain_attention=self.config.enable_pretrain_attention)(x_click_vec)
+                x_click_vec = models.LzQueryAttentionPooling()(x_click_vec, candidate_vec)
+
+            # -------------------   uncommented for the use of mlp   -------------------
+            # clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=-1)
+            # logits = models.LzLogits(mode="mlp")([clicked_vec, candidate_vec])
+
+            dim_expand = keras.layers.Lambda(lambda x: K.expand_dims(x, axis=1))
+            o_click_vec, x_click_vec = dim_expand(o_click_vec), dim_expand(x_click_vec)
+            clicked_vec = keras.layers.concatenate([o_click_vec, x_click_vec], axis=1)
+            clicked_vec = keras.layers.Lambda(lambda x: K.mean(x, axis=1, keepdims=False))(clicked_vec)
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            self.config.l2_norm_coefficient = 0.1
+
+            self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+            self.model.metrics_names += ['orth_reg']
+            self.model.metrics_tensors += [orth_reg]
+
+        return self.model
+
+
+class LzUserModelingSelfPre(LzUserModelingOrigin):
+    # "----------------------------   with self attention added as extra dimensions   ----------------------------" #
+    def _build_model(self):
+        self.doc_encoder = doc_encoder = self.get_doc_encoder()
+        user_encoder = keras.layers.TimeDistributed(doc_encoder)
+
+        clicked = keras.Input((self.config.window_size, self.config.title_shape))
+        candidate = keras.Input((self.config.title_shape,))
+
+        clicked_vec = user_encoder(clicked)
+        candidate_vec = doc_encoder(candidate)
+
+        mask = models.LzComputeMasking(0)(clicked)
+        clicked_vec = keras.layers.Lambda(lambda x: x[0] * keras.backend.expand_dims(x[1]))([clicked_vec, mask])
+
+        user_model = self.config.arch
+        logging.info('[!] Selecting User Model: {}'.format(user_model))
+
+        # ------------------------------------------    Task Compression    ------------------------------------------ #
+
+        if "lz-compress-plus" in user_model:
+            channel_count = int(user_model.split("-")[-1])
+
+            x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+            clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+
+            clicked_vec, weights, orth_reg = models.LzCompressionPredictor(channel_count=channel_count)(clicked_vec)
+            orth_reg = orth_reg[0]
+            clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            if "mean" in user_model:
+                self.config.l2_norm_coefficient = 0.1
+                self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            else:
+                self.model.add_loss(self.aux_loss(K.sum(orth_reg) * (channel_count / 3.0) ** 0.75))
+
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+
+            self.model.metrics_names += ['orth_reg']
+            if "mean" in user_model:
+                self.model.metrics_tensors += [K.mean(orth_reg) * (channel_count / 3.0) ** 0.75]
+            else:
+                self.model.metrics_tensors += [K.sum(orth_reg) * (channel_count / 3.0) ** 0.75]
+
+        # ------------   Orthogonal regularization is added to pooling vectors   ------------
+
+        elif "lz-compress-pre-plus" in user_model:
+            channel_count = int(user_model.split("-")[-1])
+
+            x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+            clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+
+            clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+            orth_reg = orth_reg[0]
+            clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            self.config.l2_norm_coefficient = 0.1
+            self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+            self.model.metrics_names += ['orth_reg']
+            self.model.metrics_tensors += [orth_reg]
+
+        # -------------   Vanilla compression, use randomized pooling vectors   -------------
+
+        else:
+            if "-non" in user_model:
+                usr_model = models.LzQueryMapUserEncoder(history_len=self.config.window_size,
+                                                         hidden_dim=self.config.hidden_dim)._build_model()
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+                clicked_vec = usr_model([clicked_vec, candidate_vec])
+            else:
+                channel_count = int(user_model.split("-")[-1])
+                self.config.enable_pretrain_attention = True
+
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+                clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre",
+                                                                      enable_pretrain_attention=self.config.enable_pretrain_attention)(clicked_vec)
+                orth_reg = orth_reg[0]
+                clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+
+            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+
+            self.model = keras.Model([clicked, candidate], logits)
+            self.config.l2_norm_coefficient = 0.1
+
+            self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                               loss=self.loss,
+                               metrics=[utils.auc_roc])
+            self.model.metrics_names += ['orth_reg']
+            self.model.metrics_tensors += [orth_reg]
+
+        return self.model
+
+
+# LzUserModeling = LzUserModelingSelf
+class LzUserModeling(LzUserModelingSelfPre):
+    pass
+
+
 if __name__ == "__main__":
-    # model = LzUserModeling(Config())._build_model()
-    # print(model.summary())
-    # print(len(model.layers))
-    # for layer in model.layers:
-    #     print(layer.input_shape, layer.output_shape)
-    #
-    # model = Seq2VecForward(Config())._build_model()
-    # print(model.summary())
-    # for layer in model.layers:
-    #     print(layer.input_shape, layer.output_shape)
 
     conf = Config()
     names = ["lz-eff-org", "lz-eff-pos", "lz-eff-neg", "lz-eff-both",
              "lz-compress-1", "lz-compress-3", "lz-compress-10",
              "lz-compress-non", "lz-compress-pre-plus-5"]
-    names_ = ["lz-compress-pre-plus-5"]
+    names_ = ["self-lz-compress-plus-3",
+              "self-lz-compress-pre-plus-3",
+              "self-lz-compress-pre-train-3"]
     for n in names_:
         conf.arch = n
         print("name: {}\n".format(n))

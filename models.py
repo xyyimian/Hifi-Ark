@@ -42,7 +42,31 @@ class LzComputeMasking(keras.layers.Layer):
         return input_shape[:-1]
 
 
-"##########################  Attention Modules ##########################"
+"####################################   Self-Attention Modules   ####################################"
+
+
+class _LzSelfAttention:
+    def __init__(self, mapping=True):
+        self.mapping = mapping
+
+    def __call__(self, inputs):
+        scalar = np.sqrt(int(inputs.shape[1])*1.0)
+        self_attention = keras.layers.Lambda(lambda x: K.batch_dot(x, K.permute_dimensions(x, (0, 2, 1))) / scalar)
+        exponential = keras.layers.Lambda(lambda x: K.exp(x))
+        zero_masking = keras.layers.Lambda(lambda x: x[0] * K.expand_dims(x[1], axis=1))
+        normalization = keras.layers.Lambda(lambda x: x / (K.sum(x, axis=-1, keepdims=True) + K.epsilon()))
+
+        if self.mapping:
+            tran_mat = keras.layers.Dense(units=int(inputs.shape[-1]), activation="elu", use_bias=False)
+            inputs = keras.layers.TimeDistributed(tran_mat)(inputs)
+
+        mask = LzComputeMasking(0)(inputs)
+        weights_matrix = self_attention(inputs)
+        weights_matrix = exponential(weights_matrix)
+        weights_matrix = zero_masking([weights_matrix, mask])
+        weights_matrix = normalization(weights_matrix)
+        outputs = keras.layers.Dot(axes=(-1, 1))([weights_matrix, inputs])
+        return outputs
 
 
 class LzSelfAttention(keras.layers.Layer):
@@ -117,6 +141,9 @@ class LzMultiHeadSelfAttention(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape
+
+
+"##########################  Attention Modules ##########################"
 
 
 class LzScaleDotAttention(keras.layers.Layer):
@@ -359,27 +386,6 @@ class MxQueryAttentionMasked(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape[0][:-2] + input_shape[0][-1:]
-
-
-"####################################   Self-Attention Modules   ####################################"
-
-class SelfAttention:
-    def __init__(self):
-        pass
-
-    def call(self, inputs):
-        self_attention = keras.layers.Lambda(lambda x: K.batch_dot(x, K.permute_dimensions(x, pattern=(0,2,1))))
-        normalization = keras.layers.Lambda(lambda x: x / K.sum(x, axis=-1, keepdims=True) + K.epsilon())
-        zero_masking = keras.layers.Lambda(lambda x, mask: x * K.expand_dims(mask, axis=1))
-        exponential = keras.layers.Lambda(lambda x: K.exp(x))
-
-        mask = LzComputeMasking(0)(inputs)
-        weights_matrix = self_attention(inputs)
-        weights_matrix = exponential(weights_matrix)
-        weights_matrix = zero_masking(weights_matrix, mask)
-        weights_matrix = normalization(weights_matrix)
-        outputs = keras.layers.Dot(axes=(-1,1))(inputs, weights_matrix)
-        return outputs
 
 
 "########################################  User Encoder  ########################################"
@@ -638,13 +644,14 @@ class LzCompressionPredictor:
         mapping = keras.layers.Dense(units=hidden_dim, activation="elu", use_bias=False)
         docs = keras.layers.TimeDistributed(mapping)(docs)
         if self.mode == "Post":
-            vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
-            orthodox_reg = self._off_diag_norm(weights, normalization=True)
+            # vectors, weights = LzMultiHeadAttentionWeight(self.channel_count)(docs)
+            # orthodox_reg = self._off_diag_norm(weights, normalization=True)
             vectors, weights = LzMultiHeadAttentionWeight(self.channel_count, self.enable_pretrain_attention)(docs)
-            orthodox_reg = self._off_diag_norm(vectors, normalization=True)
+            orthodox_reg = self._off_diag_norm(weights, normalization=True)
             return vectors, weights, orthodox_reg
         else:
-            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count, enable_pretrain_attention = self.enable_pretrain_attention)(docs)
+            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count,
+                                                                   enable_pretrain_attention=self.enable_pretrain_attention)(docs)
             return vectors, orthodox_reg
 
     def _off_diag_norm(self, weights, normalization=False):
@@ -729,3 +736,10 @@ if __name__ == "__main__":
     print("\n--------- compress -----------\n")
     vec, orth = LzMultiHeadAttentionWeightOrth(head_count=3)(docs)
     print(vec.shape, orth.shape)
+
+    print("\n------- self attention -------\n")
+    _docs = _LzSelfAttention()(docs)
+    print(_docs.shape)
+
+    _docs = LzSelfAttention(mapping=True)(docs)
+    print(_docs.shape)
