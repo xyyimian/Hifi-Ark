@@ -650,9 +650,15 @@ class LzCompressionPredictor:
             orthodox_reg = self._off_diag_norm(weights, normalization=True)
             return vectors, weights, orthodox_reg
         else:
-            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count,
-                                                                   enable_pretrain_attention=self.enable_pretrain_attention)(docs)
-            return vectors, orthodox_reg
+            if self.channel_count != 1:
+                vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count,
+                                                                    enable_pretrain_attention=self.enable_pretrain_attention)(docs)
+                return vectors, orthodox_reg
+            else:
+                vectors = LzInnerSingleHeadAttentionPooling()(docs)
+                return vectors
+
+
 
     def _off_diag_norm(self, weights, normalization=False):
         # updated normalization --Jan 27th

@@ -367,24 +367,37 @@ class LzUserModelingSelfPre(LzUserModelingOrigin):
 
         elif "lz-compress-pre-plus" in user_model:
             channel_count = int(user_model.split("-")[-1])
+            if channel_count != 1:
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
 
-            x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
-            clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+                clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+                orth_reg = orth_reg[0]
+                clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
 
-            clicked_vec, orth_reg = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
-            orth_reg = orth_reg[0]
-            clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+                logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
 
-            logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
-
-            self.model = keras.Model([clicked, candidate], logits)
-            self.config.l2_norm_coefficient = 0.1
-            self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
-            self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
-                               loss=self.loss,
-                               metrics=[utils.auc_roc])
-            self.model.metrics_names += ['orth_reg']
-            self.model.metrics_tensors += [orth_reg]
+                self.model = keras.Model([clicked, candidate], logits)
+                self.config.l2_norm_coefficient = 0.1
+                self.model.add_loss(self.aux_loss(orth_reg * (channel_count / 3.0) ** 0.75))
+                self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                                loss=self.loss,
+                                metrics=[utils.auc_roc])
+                self.model.metrics_names += ['orth_reg']
+                self.model.metrics_tensors += [orth_reg]
+            else:
+                # expand hidden_dim for comparision
+                x_click_vec = models._LzSelfAttention(mapping=True)(clicked_vec)
+                clicked_vec = keras.layers.Average()([clicked_vec, x_click_vec])
+                clicked_vec, _ = models.LzCompressionPredictor(channel_count=channel_count, mode="Pre")(clicked_vec)
+                clicked_vec = models.LzQueryAttentionPooling()(clicked_vec, candidate_vec)
+                logits = models.LzLogits(mode="dot")([clicked_vec, candidate_vec])
+                self.model = keras.Model([clicked, candidate], logits)
+                self.config.hidden_dim = 600
+                self.model.compile(optimizer=keras.optimizers.Adam(lr=self.config.learning_rate, clipnorm=5.0),
+                                loss=self.loss,
+                                metrics=[utils.auc_roc])
+                
 
         # -------------   Vanilla compression, use randomized pooling vectors   -------------
 
@@ -417,6 +430,7 @@ class LzUserModelingSelfPre(LzUserModelingOrigin):
                                metrics=[utils.auc_roc])
             self.model.metrics_names += ['orth_reg']
             self.model.metrics_tensors += [orth_reg]
+ 
 
         return self.model
 
