@@ -557,6 +557,7 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
             with open('./models/AutoEncoder_' + str(self.head_count) + '.pkl', 'rb') as p:
                 pre_weights_biases = pickle.load(p)
             pre_weights = pre_weights_biases[0]
+            pre_weights = pre_weights.transpose()
             self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
                                                     initializer=CustomInitializer(pre_weights[i].reshape((input_shape[2],1))),
                                                     name="head-{}".format(i))

@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 import models
 
+
 open = tf.gfile.GFile
 
 
@@ -82,7 +83,11 @@ def rolling_window(a, window):
 
 def auc_roc(y_true, y_pred):
     # any tensorflow metric
-    value, update_op = tf.metrics.auc(y_true, y_pred)
+    if np.sum(y_true) == 0 or np.sum(1 - y_true) == 0:
+        logging.error("y_true is all zeros, can not compute auc_roc")
+        import ipdb; ipdb.set_trace()
+    else:
+        value, update_op = tf.metrics.auc(y_true, y_pred)
 
     # find all variables created for this metric
     metric_vars = [i for i in tf.local_variables() if 'auc_roc' in i.name.split('/')[1]]
