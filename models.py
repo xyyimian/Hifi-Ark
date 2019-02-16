@@ -427,6 +427,18 @@ class LzQueryAttentionPooling:
         result = LzExternalSingleHeadAttentionPooling()([value, query])
         return result
 
+class LzBaseCompress:
+    def __init__(self, head_count):
+        self.head_count = head_count
+        self.pool_heads = [LzInnerSingleHeadAttentionPooling() for _ in range(head_count)]
+
+    def __call__(self, inputs, *args, **kwargs):
+        compression = [head(inputs) for head in self.pool_heads]
+        compression = keras.layers.Concatenate(axis=-1)(compression)
+        compression = keras.layers.Dense(units=int(inputs.shape[-1]),
+                                         activation='elu',
+                                         use_bias=False)(compression)
+        return compression
 
 class LzCompressUserEncoder:
 
@@ -557,6 +569,7 @@ class LzMultiHeadAttentionWeight(keras.layers.Layer):
             with open('./models/AutoEncoder_' + str(self.head_count) + '.pkl', 'rb') as p:
                 pre_weights_biases = pickle.load(p)
             pre_weights = pre_weights_biases[0]
+            pre_weights = pre_weights.transpose()
             self.attention_heads = [self.add_weight(shape=(input_shape[2], 1),
                                                     initializer=CustomInitializer(pre_weights[i].reshape((input_shape[2],1))),
                                                     name="head-{}".format(i))
@@ -650,13 +663,11 @@ class LzCompressionPredictor:
             orthodox_reg = self._off_diag_norm(weights, normalization=True)
             return vectors, weights, orthodox_reg
         else:
-            if self.channel_count != 1:
-                vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count,
-                                                                    enable_pretrain_attention=self.enable_pretrain_attention)(docs)
-                return vectors, orthodox_reg
-            else:
-                vectors = LzInnerSingleHeadAttentionPooling()(docs)
-                return vectors
+            
+            vectors, orthodox_reg = LzMultiHeadAttentionWeightOrth(head_count=self.channel_count,
+                                                                enable_pretrain_attention=self.enable_pretrain_attention)(docs)
+            return vectors, orthodox_reg
+            
 
 
 

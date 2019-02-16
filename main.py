@@ -27,6 +27,7 @@ def train(config):
         )
 
     # "2. training loop: data, model and process"
+    
     UM = LzUserModeling(config)
     training_data = UM.train
     for i in range(config.rounds):

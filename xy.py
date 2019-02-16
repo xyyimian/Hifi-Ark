@@ -15,12 +15,12 @@ from keras.constraints import Constraint
 
 
 input_dim = 200
-hidden_dim = 10
+hidden_dim = 3
 
-class ZeroConstraints(Constraint):
-    def __call__(self, w):
-        w *= 0
-        return w
+# class ZeroConstraints(Constraint):
+#     def __call__(self, w):
+#         w *= 0
+#         return w
 
 class XyAutoEncoder(Seq2Vec):
     def __init__(self, config, input_dim, hidden_dim):
@@ -105,7 +105,7 @@ def train(config):
             callbacks = [tbCallBack]
         )
         weightsAndBiases = model.layers[2].get_weights()
-        with open('./models/AutoEncoder_'+str(hidden_dim)+'.pkl', 'wb') as p:
+        with open('./models/Bing_AutoEncoder_'+str(hidden_dim)+'.pkl', 'wb') as p:
             pickle.dump(weightsAndBiases, p)
         UM.save_model()
         # K.clear_session()

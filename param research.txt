@@ -1,0 +1,88 @@
+﻿@click.option('-t', '--task', default='UserEmbedding')
+@click.option('-a', '--arch', default='avg')
+@click.option('-e', '--epochs', default=10)
+@click.option('-b', '--batch-size', default=100)
+@click.option('-s', '--training-step', default=10000)
+@click.option('-v', '--validation-step', default=1000)
+@click.option('-i', '--testing-impression', default=1000)
+@click.option('-l', '--learning-rate', default=0.001)
+@click.option('-ld', '--learning-rate-decay', default=0.2)
+@click.option('-g', '--gain', default=1.0)
+@click.option('-w', '--window-size', default=10)
+@click.option('-d', '--dropout', default=0.2)
+@click.option('-n', '--negative-samples', default=4)
+@click.option('-h', '--hidden-dim', default=200)
+@click.option('-nn', '--nonlocal-negative-samples', default=0)
+@click.option('-ceb', '--enable-baseline', is_flag=True)
+@click.option('--title-filter-shape', default=(400, 3), nargs=2)
+@click.option('--title-shape', default=20)
+@click.option('--body-shape', default=200)
+@click.option('--user-embedding-dim', default=200)
+@click.option('--textual-embedding-dim', default=300)
+@click.option('--textual-embedding-trainable', is_flag=True)
+@click.option('--debug', is_flag=True)
+@click.option('--background', is_flag=True)
+@click.option('--name', default='')
+@click.option('-p', '--pretrain-name', default='')
+@click.option('-cep', '--enable-pretrain-encoder', is_flag=True)
+@click.option('-cpt', '--pretrain-encoder-trainable', is_flag=True)
+
+
+task: class / func name
+
+
+------------------------
+The following are some tricks in python:
+
+
+1. 在python中参数中冒号和函数后箭头都是函数注释， 可以通过f.__annotations__取得
+2. 可以通过在模块的__init__里面定义函数来进行获取句柄
+3. 通过字符串进行函数或者模块调用并获得句柄或者类实例： return eval(class_or_module_name)(param_list)
+4. __wrapper__
+5. 在程序中创建全局变量dict，在函数中传入字典param，用dict.update(param)的方式得到全局变量
+6. 在装饰器函数中设计绑定器函数，将绑定器函数设置为对特定参数调用，这样装饰器装饰的函数就能对
+
+def pass_config(f):
+    def __wrapper__(**_config):
+        _config = Config(_config)
+        return f(_config)
+
+    __wrapper__.__name__ = f.__name__
+
+    return __wrapper__
+7. click模块的基本使用，以及click.group， 当任何子命令(@click.command + @click.option）被调用的时候, 被@click.group修饰的函数都会被调用， 并且在click.group中加入context_settings参数
+8. 函数定义的时候参数加上*表示的是以元组的形式接受变长参数，在函数调用传入参数加上*是序列解包的意思
+def test(*arg):
+	print(type(arg))
+	print(len(arg))
+l = [1,2,3,4]
+则
+>>test(l)
+>><class 'tuple'>  (定义的时候加入了*）
+>>1
+---------
+>>test(*l)
+>><class 'tuple'>  （调用的时候加入了*）
+>>4
+
+9. if I want to get a element-wise max, I should np.max(ndarray, axis - -1), which return an array with dimension of dim-1
+10. if I want to use a matrix to subtract/divide a vector, for example
+----------------
+data = np.array([[1,1,1],[2,2,2],[3,3,3]])
+vector = np.array([1,2,3])
+sub_result = [[0,0,0], [0,0,0], [0,0,0]]
+div_result = [[1,1,1], [1,1,1], [1,1,1]]
+-------------------
+I should
+sub_result = data - vector[:, None] or vector[:, np.newaxis]
+div_result = data - vector[:, None]
+
+-------------------------
+Seq2Vec类：
+
+build_model函数做了如下几件事：
+1. 获取doc_encoder 和 user_encoder
+2. construct keras model
+*3.loss没有看懂在干什么 （sequential.py 204）
+
+
