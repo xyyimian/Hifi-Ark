@@ -98,16 +98,14 @@ def args_parser(args):
 
 if __name__ == "__main__":
 
-    # logging.basicConfig(
-    #     format='%(asctime)s : %(levelname)s : %(message)s',
-    #     level=logging.INFO,
-    #     handlers=[logging.FileHandler(settings.Config().log_output),
-    #               logging.StreamHandler()]
-    # )
+    import os
+    if not os.path.exists('log'):
+        os.mkdir('log')
+    if not os.path.exists('models'):
+        os.mkdir('models')
 
     args = args_parser(sys.argv[1:])
-    print(args)
-    # logging.info(sys.argv[1:])
+    logging.info(sys.argv[1:])
 
     for m in args["models"]:
         config = settings.Config(rounds=args["rounds"], epochs=args["epochs"], arch=m, name=m)
