@@ -12,7 +12,7 @@ import models
 import settings
 import utils
 from lz import LzUserModeling
-from test import RunUserModel
+# from test import RunUserModel
 
 
 def train(config):
