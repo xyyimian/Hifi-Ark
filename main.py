@@ -42,8 +42,6 @@ def train(config):
                 callbacks=None,
                 verbose=1 if config.debug and not config.background else 2)
             utils.logging_history(history)
-            if hasattr(UM, 'callback'):
-                UM.callback(epoch)
             try:
                 evaluations = model.evaluate_generator(UM.valid,
                                                        config.validation_step,
@@ -55,12 +53,28 @@ def train(config):
             if hasattr(UM, 'callback_valid'):
                 UM.callback_valid(epoch)
             logging.info('[-] finish epoch {}'.format(epoch))
-
+        if hasattr(UM, 'callback'):
+            UM.callback(epoch)
         # "3. save model to .json and .pkl"
         print("saving model to file ...")
         UM.save_model()
-        K.clear_session()
+        # K.clear_session()
     return 0
+
+def test(config):
+    logging.basicConfig(
+        format='%(asctime)s : %(levelname)s : %(message)s',
+        level=logging.INFO,
+        handlers=[logging.FileHandler(config.log_output),
+                  logging.StreamHandler()]
+        )
+
+    print('start testing')
+    model = utils.load_model(config.model_output)
+    UM = LzUserModeling(config)
+    UM.model = model
+    UM.callback(1)
+
 
 
 def users(config: settings.Config):
@@ -98,6 +112,7 @@ def args_parser(args):
 
 if __name__ == "__main__":
 
+
     import os
     if not os.path.exists('log'):
         os.mkdir('log')
@@ -105,7 +120,6 @@ if __name__ == "__main__":
         os.mkdir('models')
 
     args = args_parser(sys.argv[1:])
-    logging.info(sys.argv[1:])
 
     for m in args["models"]:
         config = settings.Config(rounds=args["rounds"], epochs=args["epochs"], arch=m, name=m)

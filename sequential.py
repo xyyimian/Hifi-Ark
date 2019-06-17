@@ -284,15 +284,15 @@ class Seq2Vec:
         )
 
     def callback(self, epoch):
-        metric_vars = [i for i in tf.local_variables() if 'auc_roc' in i.name.split('/')[1]]
-        keras.backend.get_session().run(tf.initializers.variables(metric_vars))
+        # metric_vars = [i for i in tf.local_variables() if 'auc_roc' in i.name.split('/')[1]]
+        # keras.backend.get_session().run(tf.initializers.variables(metric_vars))
 
-        keras.backend.set_value(self.model.optimizer.lr, keras.backend.get_value(self.model.optimizer.lr) *
-                                self.config.learning_rate_decay)
+        # keras.backend.set_value(self.model.optimizer.lr, keras.backend.get_value(self.model.optimizer.lr) *
+        #                         self.config.learning_rate_decay)
 
         if epoch or True:
             def __gen__():
-                for _, (y_pred, y_true) in zip(range(self.config.testing_impression), self.test):
+                for y_pred, y_true in self.test:
                     auc = roc_auc_score(y_true, y_pred)
                     ndcgx = utils.ndcg_score(y_true, y_pred, 10)
                     ndcgv = utils.ndcg_score(y_true, y_pred, 5)
