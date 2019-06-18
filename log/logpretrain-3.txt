@@ -1,0 +1,8 @@
+2019-06-18 14:12:29,858 : INFO : [+] loading docs metadata
+2019-06-18 14:13:11,933 : INFO : [+] loading docs metadata
+2019-06-18 14:16:13,582 : INFO : [+] loading docs metadata
+2019-06-18 14:17:22,542 : INFO : [+] loading docs metadata
+2019-06-18 14:17:34,387 : INFO : [-] loaded docs metadata
+2019-06-18 14:17:34,438 : INFO : launching the 0 round of pretrain-3
+2019-06-18 14:17:34,438 : INFO : [+] start epoch 0
+2019-06-18 14:17:40,861 : INFO : [!] Selected User Model: pretrain-3

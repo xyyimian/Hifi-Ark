@@ -11,8 +11,7 @@ import document
 import models
 import settings
 import utils
-from lz import LzUserModeling
-# from test import RunUserModel
+from lz import UserModeling
 
 
 def train(config):
@@ -27,7 +26,7 @@ def train(config):
 
     # "2. training loop: data, model and process"
     
-    UM = LzUserModeling(config)
+    UM = UserModeling(config)
     training_data = UM.train
     for i in range(config.rounds):
         logging.info("launching the {} round of {}".format(i, m))
@@ -71,7 +70,7 @@ def test(config):
 
     print('start testing')
     model = utils.load_model(config.model_output)
-    UM = LzUserModeling(config)
+    UM = UserModeling(config)
     UM.model = model
     UM.callback(1)
 
@@ -89,16 +88,6 @@ def users(config: settings.Config):
     return 0
 
 
-@abc.abstractmethod
-def score(config: settings.Config):
-    pass
-
-
-@abc.abstractmethod
-def evaluate(config: settings.Config):
-    pass
-
-
 def args_parser(args):
     args = dict(a.split("=") for a in args)
     assert "models" in args.keys()
@@ -114,10 +103,10 @@ if __name__ == "__main__":
 
 
     import os
-    if not os.path.exists('log'):
-        os.mkdir('log')
-    if not os.path.exists('models'):
-        os.mkdir('models')
+    if not os.path.exists('./log'):
+        os.mkdir('./log')
+    if not os.path.exists('./models'):
+        os.mkdir('./models')
 
     args = args_parser(sys.argv[1:])
 

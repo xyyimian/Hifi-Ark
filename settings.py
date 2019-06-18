@@ -4,11 +4,11 @@ import os
 class Config:
 
     def __init__(self,
-                 input_training_data_path="data/",
-                 input_validation_data_path="data/",
-                 input_previous_model_path="models/",
-                 output_model_path="models/",
-                 log_dir="log/",
+                 input_training_data_path="./data/",
+                 input_validation_data_path="./data/",
+                 input_previous_model_path="./models/",
+                 output_model_path="./models/",
+                 log_dir="./log/",
                  textual_embedding_trainable=False,
                  enable_baseline=True,
                  enable_pretrain_encoder=False, #True,

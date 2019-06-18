@@ -1,0 +1,24 @@
+2019-06-18 14:18:02,238 : INFO : [+] loading docs metadata
+2019-06-18 14:18:13,310 : INFO : [-] loaded docs metadata
+2019-06-18 14:18:13,372 : INFO : launching the 0 round of pre-train-3
+2019-06-18 14:18:13,372 : INFO : [+] start epoch 0
+2019-06-18 14:18:16,698 : INFO : [!] Selected User Model: pre-train-3
+2019-06-18 14:19:29,498 : INFO : [+] loading docs metadata
+2019-06-18 14:19:40,452 : INFO : [-] loaded docs metadata
+2019-06-18 14:19:40,503 : INFO : launching the 0 round of pre-train-3
+2019-06-18 14:19:40,503 : INFO : [+] start epoch 0
+2019-06-18 14:19:43,820 : INFO : [!] Selected User Model: pre-train-3
+2019-06-18 14:19:43,832 : INFO : Pretrain Method Applied
+2019-06-18 14:20:13,446 : INFO : [+] loading docs metadata
+2019-06-18 14:20:24,306 : INFO : [-] loaded docs metadata
+2019-06-18 14:20:24,357 : INFO : launching the 0 round of pre-train-3
+2019-06-18 14:20:24,357 : INFO : [+] start epoch 0
+2019-06-18 14:20:27,729 : INFO : [!] Selected User Model: pre-train-3
+2019-06-18 14:20:27,737 : INFO : Pretrain Method Applied
+2019-06-18 14:22:23,201 : INFO : [+] loading docs metadata
+2019-06-18 14:22:34,488 : INFO : [-] loaded docs metadata
+2019-06-18 14:22:34,539 : INFO : launching the 0 round of pre-train-3
+2019-06-18 14:22:34,539 : INFO : [+] start epoch 0
+2019-06-18 14:22:37,936 : INFO : [!] Selected User Model: pre-train-3
+2019-06-18 14:22:37,944 : INFO : Pretrain Method Applied
+2019-06-18 14:22:38,070 : INFO : Dot logit applied
